@@ -35,30 +35,47 @@ func GenerateSummaryImage(totalCountries int, topCountries []models.Country, las
 
 	// Load font
 	fontPath := "assets/Roboto-Bold.ttf" // Assuming a font is available or added
-	if _, err := os.Stat(fontPath); os.IsNotExist(err) {
-		log.Printf("Font file not found at %s. Using default font.", fontPath)
-		// Fallback to default font if custom font is not found
-		if err := dc.LoadFontFace(gg.DefaultFont, 24); err != nil {
-			log.Printf("Failed to load default font: %v", err)
-		}
-	} else {
-		if err := dc.LoadFontFace(fontPath, 24); err != nil {
-			log.Printf("Failed to load font from %s: %v", fontPath, err)
-			// Fallback to default font
-			if err := dc.LoadFontFace(gg.DefaultFont, 24); err != nil {
-				log.Printf("Failed to load default font: %v", err)
-			}
+	// Load font
+	// Default to a system font or a bundled font if Roboto-Bold.ttf is not found.
+	// gg.LoadFontFace expects a valid font path. If `fontPath` fails, it falls back to a generic sans-serif.
+	// For better control, one might embed the font or ensure its presence.
+	currentFontSize := 24.0
+	err := dc.LoadFontFace(fontPath, currentFontSize)
+	if err != nil {
+		log.Printf("Warning: Could not load font from %s: %v. Using a default system font.", fontPath, err)
+		// Try to load a generic system font if the specific one fails
+		err = dc.LoadFontFace("sans", currentFontSize)
+		if err != nil {
+			log.Printf("Error: Could not load any font, text rendering might be affected: %v", err)
+
 		}
 	}
 
 	dc.SetColor(color.RGBA{R: 255, G: 255, B: 255, A: 255}) // White text
 
 	// Title
-	dc.SetFontFace(dc.FontContext.LoadFontFace("sans", 36)) // Re-load with a larger size for title
+	titleFontSize := 36.0
+	// Load and set font for the title
+	titleLoadErr := dc.LoadFontFace(fontPath, titleFontSize)
+	if titleLoadErr != nil {
+		log.Printf("Warning: Could not load preferred font from %s for title: %v. Falling back to 'sans' font.", fontPath, titleLoadErr)
+		// Fallback to a generic sans-serif font for the title
+		if fallbackErr := dc.LoadFontFace("sans", titleFontSize); fallbackErr != nil {
+			log.Printf("Error: Could not load 'sans' font for title either: %v. Title rendering might be affected.", fallbackErr)
+		}
+	}
 	dc.DrawStringAnchored("Country Data Summary", imageWidth/2, 50, 0.5, 0.5)
 
-	// Total Countries
-	dc.SetFontFace(dc.FontContext.LoadFontFace("sans", 24)) // Reset font size
+	// Reset to the base font for the rest of the text
+	// We need to reload it explicitly as the title font changed the current font face
+	baseFontSize := currentFontSize // Assuming baseFontSize should be the same as the initial currentFontSize
+	resetBaseFontErr := dc.LoadFontFace(fontPath, baseFontSize)
+	if resetBaseFontErr != nil {
+		if fallbackErr := dc.LoadFontFace("sans", baseFontSize); fallbackErr != nil {
+			log.Printf("Error: Could not load 'sans' font for resetting base font: %v. Text rendering might be affected.", fallbackErr)
+		}
+	}
+
 	dc.DrawString(fmt.Sprintf("Total Countries: %d", totalCountries), 50, 120)
 
 	// Last Refreshed At
